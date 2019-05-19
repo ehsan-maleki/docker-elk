@@ -1,0 +1,6 @@
+apm-server:
+  host: localhost:8200
+
+output:
+  elasticsearch:
+    hosts: http://emzil-elastic-01:9200

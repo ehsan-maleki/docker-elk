@@ -1,0 +1,147 @@
+version: '3.3'
+
+services:
+
+  emzil-elastic-01:
+    container_name: emzil-elastic-01
+    hostname: elkcluster-node-01
+    build:
+      context: elasticsearch/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    environment:
+      cluster.name: 'emzil-elk-cluster'
+      node.name: 'elkcluster-node-01'
+      node.master: 'true'
+      node.data: 'true'
+      node.ingest: 'false'
+      cluster.initial_master_nodes: 'elkcluster-node-01'
+      bootstrap.memory_lock: 'false'
+      ES_JAVA_OPTS: '-Xms256m -Xmx256m'
+      network.host: ''
+      discovery.zen.ping.unicast.hosts: 'emzil-elastic-02'
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - ./elasticsearch/node-01/data:/usr/share/elasticsearch/data
+      - ./elasticsearch/node-01/logs:/usr/share/elasticsearch/logs
+    ports:
+      - target: 9200
+        published: 39210
+        protocol: tcp
+        mode: host
+      - target: 9300
+        published: 39310
+        protocol: tcp
+        mode: host
+    networks:
+      - elk
+
+  emzil-elastic-02:
+    container_name: emzil-elastic-02
+    hostname: elkcluster-node-02
+    build:
+      context: elasticsearch/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    environment:
+      cluster.name: 'emzil-elk-cluster'
+      node.name: 'elkcluster-node-02'
+      node.master: 'false'
+      node.data: 'true'
+      node.ingest: 'false'
+      cluster.initial_master_nodes: 'elkcluster-node-01'
+      bootstrap.memory_lock: 'false'
+      ES_JAVA_OPTS: '-Xms256m -Xmx256m'
+      discovery.zen.ping.unicast.hosts: 'emzil-elastic-01'
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml
+      - ./elasticsearch/node-02/data:/usr/share/elasticsearch/data
+      - ./elasticsearch/node-02/logs:/usr/share/elasticsearch/logs
+    ports:
+      - target: 9200
+        published: 39220
+        protocol: tcp
+        mode: host
+      - target: 9300
+        published: 39320
+        protocol: tcp
+        mode: host
+    networks:
+      - elk
+
+  emzil-logstash:
+    container_name: emzil-logstash
+    hostname: emzil-logstash
+    build:
+      context: logstash/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    volumes:
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+    ports:
+      - target: 5000
+        published: 35000
+        protocol: tcp
+        mode: host
+      - target: 9600
+        published: 39600
+        protocol: tcp
+        mode: host
+    environment:
+      LS_JAVA_OPTS: '-Xms512m -Xmx512m'
+    networks:
+      - elk
+    depends_on:
+      - emzil-elastic-01
+
+  emzil-apm-server:
+    container_name: emzil-apm-server
+    hostname: emzil-apm-server
+    build:
+      context: apm-server/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    volumes:
+      - ./apm-server/config/apm-server.yml:/usr/share/apm-server/config/apm-server.yml:ro
+    ports:
+      - target: 8200
+        published: 38200
+        protocol: tcp
+        mode: host
+    networks:
+      - elk
+    depends_on:
+      - emzil-elastic-01
+
+  emzil-kibana:
+    container_name: emzil-kibana
+    hostname: emzil-kibana
+    build:
+      context: kibana/
+      args:
+        ELK_VERSION: $ELK_VERSION
+    volumes:
+      - ./kibana/config/:/usr/share/kibana/config:ro
+    ports:
+      - target: 5601
+        published: 35601
+        protocol: tcp
+        mode: host
+    networks:
+      - elk
+    depends_on:
+      - emzil-elastic-01
+
+networks:
+
+  elk:
+    driver: bridge
